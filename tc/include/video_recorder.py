@@ -3,10 +3,10 @@ import cv2
 
 class VideoRecorder:
     #resolution=(width, height)
-    def __init__(self, output_path="results/output.webm", fps=10, resolution=(162, 162)):
-        #package_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    def __init__(self, output_path=None, fps=10, resolution=(162, 162)):
+        package_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
         
-        self.output_path = output_path
+        self.output_path = output_path if output_path else os.path.join(package_path, "tc/results/output.webm")
         self.fps = fps
         self.resolution = resolution
         self.video_writer = None

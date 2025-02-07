@@ -1,6 +1,7 @@
 from ultralytics import YOLO
 from collections import deque
 import cv2
+import os
 
 class MovingAverage:
     def __init__(self, window_size):
@@ -18,7 +19,11 @@ class MovingAverage:
        return self.calculate_average()
 
 class ObjectDetector:
-  def __init__(self, model_path="home/wy/ros2_ws/src/tc/tc/include/yolo11n.pt", min_conf=0.5, window_size = 10):
+  def __init__(self, model_path=None, min_conf=0.5, window_size = 10):
+      package_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+      model_path = os.path.join(package_path, "tc/include/yolo11n.pt")
+
+      self.model_path = model_path if model_path else os.path.join(package_path, "tc/include/yolo11n.pt")
       self.model = YOLO(model_path)
       self.min_confidence = min_conf
 

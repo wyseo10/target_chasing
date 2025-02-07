@@ -4,6 +4,7 @@ from std_msgs.msg import Int32
 
 import cv2
 import time
+import os
 from .include.object_detector import ObjectDetector
 from .include.video_recorder import VideoRecorder
 from .include.aideck_streamer import AIDeckStreamer
@@ -37,14 +38,13 @@ class CenterPublisher(Node):
 
         # YOLO 감지 수행
         max_box = self.detector.detect(color_img)
+        center_x, center_y = color_img.shape[1] // 2, color_img.shape[0] // 2
 
-        # max_box 검증 후 center_x, center_y 가져오기
         if isinstance(max_box, dict) and 'center_x' in max_box and 'center_y' in max_box:
             center_x = int(max_box['center_x'])
             center_y = int(max_box['center_y'])
         else:
-            self.get_logger().warn("max_box is invalid or missing keys: 'center_x', 'center_y'.")
-            return  # 오류가 발생하지 않도록 조기 종료
+            self.get_logger().warn("⚠️ No person detected. Displaying only the camera feed.")
 
         # ROS 2 메시지 생성 및 퍼블리시
         msg_x = Int32()
@@ -57,17 +57,21 @@ class CenterPublisher(Node):
 
         self.get_logger().info(f'Publishing max_box center: {center_x}, {center_y}')
 
-        # 화면 표시
-        cam_center_x = color_img.shape[1] // 2
-        cam_center_y = color_img.shape[0] // 2
-        cv2.circle(color_img, (cam_center_x, cam_center_y), 2, (0, 0, 255), -1)
+        try:
+            cam_center_x = color_img.shape[1] // 2
+            cam_center_y = color_img.shape[0] // 2
+            cv2.circle(color_img, (cam_center_x, cam_center_y), 2, (255, 0, 0), -1)  # 중앙점 표시
 
-        # 검출된 박스 그리기
-        self.detector.draw_box(color_img, max_box)
-        self.recorder.write_frame(color_img)
+            if max_box.get("found", False):
+                self.detector.draw_box(color_img, max_box)
 
-        cv2.imshow("YOLO Detection", color_img)
-        cv2.waitKey(1)
+            self.recorder.write_frame(color_img)
+
+            cv2.imshow("YOLO Detection", color_img)
+            cv2.waitKey(1)
+
+        except Exception as e:
+            self.get_logger().error(f"Error displaying image: {e}")
 
 def main(args=None):
     rclpy.init(args=args)
