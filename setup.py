@@ -20,7 +20,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'center_publisher = tc.center_publisher:main'
+            'center_publisher = tc.center_publisher:main',
+            'center_subscriber = tc.center_subscriber:main',
         ],
     },
 )
