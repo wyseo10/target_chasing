@@ -2,14 +2,14 @@ import rclpy
 import math
 import numpy as np
 from rclpy.node import Node
-from geometry_msgs.msg import Point, Twist
+from geometry_msgs.msg import PointStamped, Twist
 from crazyflie_py.crazyflie import CrazyflieServer, TimeHelper
 
 class CenterSubscriber(Node):
     def __init__ (self):
         super().__init__('center_subscriber')
         self.subscription_box = self.create_subscription(
-            Point,
+            PointStamped,
             'max_box_center',
             self.listener_box_callback,
             10
@@ -44,9 +44,12 @@ class CenterSubscriber(Node):
         self.flag_right = False
         self.flag_kill = False
 
+        self.yaw = 0.0
+        self.yaw_threshold = 7.0
+        self.yaw_rate_max = math.pi / 8
         self.box_x = None
         self.target_x = 81.0
-        self.kP_theta = 1.0
+        self.kP_theta = 0.01
         self.kI_theta = 0.0
         self.kD_theta = 0.00
 
@@ -116,56 +119,54 @@ class CenterSubscriber(Node):
             self.get_logger().info("No box data")
             return
         
+        current_time = self.get_clock().now()
+        msg_time_diff = (current_time.nanoseconds - self.msg_time) * 1e-9
+
+        if msg_time_diff > 0.5:
+            self.get_logger().info("Msg Delay !!")
+            return
+
         err_theta = self.target_x - self.box_x
-        #yaw_rate = self.kP_theta * err_theta
+        yaw_rate = self.kP_theta * err_theta
+        yaw_rate = max(min(yaw_rate, self.yaw_rate_max), -self.yaw_rate_max)
         
+        self.yaw += yaw_rate * self.dt
+        self.yaw = (self.yaw + math.pi) % (2 * math.pi) - math.pi
+        self.get_logger().info(f"YawRate : {yaw_rate:4f}, Yaw : {self.yaw:4f}, MsgTimeDiff: {msg_time_diff:.4f}")
+
         if self.flag_takeoff_done:
-            if err_theta > 0:
-                self.ccw()
-            elif err_theta < 0:
-                self.cw()
-            else:
+            for cf in self.allcfs.crazyflies:
+                cf.goTo(np.array([0.001, 0, self.Z]), self.yaw, 0.05, relative=False)
+            if abs(err_theta) < self.yaw_threshold:
                 self.get_logger().info("Find Target")
-
-
-        
-        #yaw_des = yaw_prev + yaw_rate * self.dt
-
-        #for cf in self.allcfs.crazyflies:
-        #    cf.goTo(np.array([0.001, 0.0, 0]), yaw_des, 0.05, relative=False)
-
 
     def timer_control_callback(self):
         if self.flag_takeoff and self.flag_box_msg:
             self.takeoff()
-
         if self.flag_land:
             self.land()
-
         if self.flag_ccw:
             self.ccw()
-            
         if self.flag_cw:
             self.cw()
-
         if self.flag_front:
             self.front()
-        
         if self.flag_back:
             self.back()
-
         if self.flag_left:
             self.left()
-
         if self.flag_right:
             self.right()
-
         if self.flag_kill:
             self.kill()
 
     def listener_box_callback(self, msg):        
-        self.get_logger().info(f'Subscribing : x={msg.x:.2f}, y={msg.y:.2f}')
-        self.box_x = msg.x
+        self.get_logger().info(f'Subscribing : x={msg.point.x:.2f}, y={msg.point.y:.2f}')
+        
+        self.box_x = msg.point.x
+
+        self.msg_time = msg.header.stamp.sec * 1e9  + msg.header.stamp.nanosec
+        
         self.flag_box_msg = True
 
     def listener_cmdvel_callback(self, msg):

@@ -1,6 +1,6 @@
 import rclpy
 from rclpy.node import Node
-from geometry_msgs.msg import Point
+from geometry_msgs.msg import PointStamped
 
 import cv2
 import time
@@ -13,7 +13,7 @@ class CenterPublisher(Node):
 
     def __init__(self):
         super().__init__('center_publisher')
-        self.publisher_ = self.create_publisher(Point, 'max_box_center', 10)
+        self.publisher_ = self.create_publisher(PointStamped, 'max_box_center', 10)
         timer_period = 0.005  # 최대 10fps
         self.timer = self.create_timer(timer_period, self.timer_detecting_callback)
 
@@ -46,10 +46,11 @@ class CenterPublisher(Node):
             self.get_logger().warn("⚠️ No person detected. Displaying only the camera feed.")
 
         # ROS 2 메시지 생성 및 퍼블리시
-        msg = Point()
-        msg.x = float(center_x)
-        msg.y = float(center_y)
-        msg.z = 0.0
+        msg = PointStamped()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.point.x = float(center_x)
+        msg.point.y = float(center_y)
+        msg.point.z = 0.0
 
         self.publisher_.publish(msg)
 
