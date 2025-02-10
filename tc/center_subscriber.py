@@ -51,7 +51,8 @@ class CenterSubscriber(Node):
         self.yaw_threshold = 7.0
         self.yaw_rate_max = math.pi / 8
 
-        self.kP_theta = 0.05
+        #PID gain tuning required.
+        self.kP_theta = 0.0
         self.kI_theta = 0.0
         self.kD_theta = 0.0
 
@@ -129,7 +130,13 @@ class CenterSubscriber(Node):
             return
 
         err_theta = self.target_x - self.box_x
-        yaw_rate = self.kP_theta * err_theta
+        d_err_theta = (err_theta - self.prev_err_theta) / self.dt
+        self.sum_err_theta += err_theta * self.dt
+
+        if abs(err_theta) < self.yaw_threshold:
+            self.sum_err_theta = 0.0 
+
+        yaw_rate = (self.kP_theta * err_theta) + (self.kI_theta * self.sum_err_theta) + (self.kD_theta * d_err_theta)
         yaw_rate = max(min(yaw_rate, self.yaw_rate_max), -self.yaw_rate_max)
         
         self.yaw += yaw_rate * self.dt
