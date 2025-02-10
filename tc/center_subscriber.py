@@ -31,6 +31,7 @@ class CenterSubscriber(Node):
         self.timeHelper = TimeHelper(self.allcfs)
 
         self.flag_box_msg = False
+        self.flag_takeoff_done = False
         self.flag_takeoff = False
         self.flag_land = False
         self.flag_ccw = False
@@ -40,19 +41,29 @@ class CenterSubscriber(Node):
         self.flag_left = False
         self.flag_right = False
 
+        self.target_x = 81.0
+        self.kP_theta = 1.0
+        self.kI_theta = 0.1
+        self.kD_theta = 0.05
+
+        self.sum_err_theta = 0.0
+        self.prev_err_theta = 0.0
+        self.dt = 0.1
+
         self.get_logger().info('Sub ready')
 
-
-    def takeoff(self):    
+    def takeoff(self):
         self.allcfs.takeoff(targetHeight=self.Z, duration=1.0 + self.Z)
         self.timeHelper.sleep(1.5 + self.Z)
         self.get_logger().info('Take off')
+        self.flag_takeoff_done = True
         self.flag_takeoff = False
         
     def land(self):
         self.allcfs.land(targetHeight=0.04, duration=2.5)
         self.timeHelper.sleep(1.0+self.Z)
         self.get_logger().info('Land')
+        self.flag_takeoff_done = False
         self.flag_land = False
 
     def ccw(self):
@@ -121,6 +132,15 @@ class CenterSubscriber(Node):
         self.get_logger().info(f'Subscribing : x={msg.x:.2f}, y={msg.y:.2f}')
         self.flag_box_msg = True
 
+        err_theta = self.target_x - msg.x
+        yaw_rate = self.kP_theta * err_theta
+        
+        if self.flag_takeoff_done:
+            if yaw_rate > 0:
+                self.ccw()
+            else:
+                self.cw()   
+
     def listener_cmdvel_callback(self, msg):
         self.get_logger().info(f'Cmd_vel : line_x = {msg.linear.x:.2f}, ang_z = {msg.angular.z:.2f}')
         
@@ -149,7 +169,6 @@ def main(args=None):
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
-
 
 if __name__ == '__main__':
     main()
