@@ -162,7 +162,6 @@ class CenterSubscriber(Node):
 
     def listener_box_callback(self, msg):        
         self.get_logger().info(f'Subscribing : x={msg.point.x:.2f}, y={msg.point.y:.2f}')
-        
         self.box_x = msg.point.x
 
         self.msg_time = msg.header.stamp.sec * 1e9  + msg.header.stamp.nanosec
