@@ -22,11 +22,13 @@ class CenterSubscriber(Node):
             10
         )
 
-        timer_period = 0.01  # 최대 100Hz
-        self.timer = self.create_timer(timer_period, self.timer_control_callback)
+        timer_con_period = 0.01  # 최대 100Hz
+        timer_cmd_period = 0.05
+        self.timer_con = self.create_timer(timer_con_period, self.timer_control_callback)
+        #self.timer_cmdvel = self.create_timer(timer_cmd_period, self.timer_cmdvel_callback)
 
         self.get_logger().info('Wait for server')
-        self.Z = 0.8
+        self.Z = 0.5
         self.allcfs = CrazyflieServer()
         self.timeHelper = TimeHelper(self.allcfs)
 
@@ -40,15 +42,17 @@ class CenterSubscriber(Node):
         self.flag_back = False
         self.flag_left = False
         self.flag_right = False
+        self.flag_kill = False
 
+        self.box_x = None
         self.target_x = 81.0
         self.kP_theta = 1.0
-        self.kI_theta = 0.1
-        self.kD_theta = 0.05
+        self.kI_theta = 0.0
+        self.kD_theta = 0.00
 
         self.sum_err_theta = 0.0
         self.prev_err_theta = 0.0
-        self.dt = 0.1
+        self.dt = timer_cmd_period
 
         self.get_logger().info('Sub ready')
 
@@ -68,13 +72,13 @@ class CenterSubscriber(Node):
 
     def ccw(self):
         for cf in self.allcfs.crazyflies:
-            cf.goTo(np.array([0.001, 0, 0]), math.pi / 8.0, 0.05, relative=True)
+            cf.goTo(np.array([0.001, 0, 0]), math.pi / 32.0, 0.05, relative=True)
         self.get_logger().info('CCW')
         self.flag_ccw = False
 
     def cw(self):
         for cf in self.allcfs.crazyflies:
-            cf.goTo(np.array([0.001, 0, 0]), -math.pi / 8.0, 0.05, relative=True)
+            cf.goTo(np.array([0.001, 0, 0]), -math.pi / 32.0, 0.05, relative=True)
         self.get_logger().info('CW')
         self.flag_cw = False
 
@@ -102,6 +106,21 @@ class CenterSubscriber(Node):
         self.get_logger().info('Right')
         self.flag_right = False
 
+    def kill(self):
+        self.allcfs.emergency()
+        self.get_logger().info('Kill')
+        self.flag_kill = False
+
+   #def timer_cmdvel_callback(self):
+
+
+        
+        #yaw_des = yaw_prev + yaw_rate * self.dt
+
+        #for cf in self.allcfs.crazyflies:
+        #    cf.goTo(np.array([0.001, 0.0, 0]), yaw_des, 0.05, relative=False)
+
+
     def timer_control_callback(self):
         if self.flag_takeoff and self.flag_box_msg:
             self.takeoff()
@@ -127,18 +146,27 @@ class CenterSubscriber(Node):
         if self.flag_right:
             self.right()
 
+        if self.flag_kill:
+            self.kill()
+
     def listener_box_callback(self, msg):        
         self.get_logger().info(f'Subscribing : x={msg.x:.2f}, y={msg.y:.2f}')
+        self.box_x = msg.x
         self.flag_box_msg = True
-
-        err_theta = self.target_x - msg.x
+        #if self.box_x is None:
+        #    self.get_logger().info("No box data")
+        #    return
+        
+        err_theta = self.target_x - self.box_x
         #yaw_rate = self.kP_theta * err_theta
         
         if self.flag_takeoff_done:
             if err_theta > 0:
                 self.ccw()
+            elif err_theta < 0:
+                self.cw()
             else:
-                self.cw()   
+                self.get_logger().info("Find Target")
 
     def listener_cmdvel_callback(self, msg):
         self.get_logger().info(f'Cmd_vel : line_x = {msg.linear.x:.2f}, ang_z = {msg.angular.z:.2f}')
@@ -155,8 +183,8 @@ class CenterSubscriber(Node):
             self.flag_back = True
         if msg.linear.x == 0.0 and msg.angular.z == -1.0: # "l" is pressed
             self.flag_right = True
-        #if msg.linear.x == -0.5 and msg.angular.z == -1.0: # "m" is pressed
-        
+        if msg.linear.x == -0.5 and msg.angular.z == -1.0: # "m" is pressed
+            self.flag_kill = True
         if msg.linear.x == -0.5 and msg.angular.z == 0.0: # "," is pressed
             self.flag_takeoff = True
         if msg.linear.x == -0.5 and msg.angular.z == 1.0: # "." is pressed
