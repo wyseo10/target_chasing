@@ -32,6 +32,9 @@ class CenterSubscriber(Node):
         self.allcfs = CrazyflieServer()
         self.timeHelper = TimeHelper(self.allcfs)
 
+        self.box_x = None
+        self.target_x = 81.0
+
         self.flag_box_msg = False
         self.flag_takeoff_done = False
         self.flag_takeoff = False
@@ -47,11 +50,11 @@ class CenterSubscriber(Node):
         self.yaw = 0.0
         self.yaw_threshold = 7.0
         self.yaw_rate_max = math.pi / 8
-        self.box_x = None
-        self.target_x = 81.0
+
+        #PID gain tuning required.
         self.kP_theta = 0.01
-        self.kI_theta = 0.0
-        self.kD_theta = 0.00
+        self.kI_theta = 0.0005
+        self.kD_theta = 0.0001
 
         self.sum_err_theta = 0.0
         self.prev_err_theta = 0.0
