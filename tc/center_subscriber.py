@@ -25,7 +25,7 @@ class CenterSubscriber(Node):
         timer_con_period = 0.01  # 최대 100Hz
         timer_cmd_period = 0.05
         self.timer_con = self.create_timer(timer_con_period, self.timer_control_callback)
-        #self.timer_cmdvel = self.create_timer(timer_cmd_period, self.timer_cmdvel_callback)
+        self.timer_cmdvel = self.create_timer(timer_cmd_period, self.timer_cmdvel_callback)
 
         self.get_logger().info('Wait for server')
         self.Z = 0.5
@@ -111,7 +111,21 @@ class CenterSubscriber(Node):
         self.get_logger().info('Kill')
         self.flag_kill = False
 
-   #def timer_cmdvel_callback(self):
+    def timer_cmdvel_callback(self):
+        if self.box_x is None:
+            self.get_logger().info("No box data")
+            return
+        
+        err_theta = self.target_x - self.box_x
+        #yaw_rate = self.kP_theta * err_theta
+        
+        if self.flag_takeoff_done:
+            if err_theta > 0:
+                self.ccw()
+            elif err_theta < 0:
+                self.cw()
+            else:
+                self.get_logger().info("Find Target")
 
 
         
@@ -153,20 +167,6 @@ class CenterSubscriber(Node):
         self.get_logger().info(f'Subscribing : x={msg.x:.2f}, y={msg.y:.2f}')
         self.box_x = msg.x
         self.flag_box_msg = True
-        #if self.box_x is None:
-        #    self.get_logger().info("No box data")
-        #    return
-        
-        err_theta = self.target_x - self.box_x
-        #yaw_rate = self.kP_theta * err_theta
-        
-        if self.flag_takeoff_done:
-            if err_theta > 0:
-                self.ccw()
-            elif err_theta < 0:
-                self.cw()
-            else:
-                self.get_logger().info("Find Target")
 
     def listener_cmdvel_callback(self, msg):
         self.get_logger().info(f'Cmd_vel : line_x = {msg.linear.x:.2f}, ang_z = {msg.angular.z:.2f}')
