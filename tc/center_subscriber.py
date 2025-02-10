@@ -22,8 +22,10 @@ class CenterSubscriber(Node):
             10
         )
 
-        timer_period = 0.01  # 최대 100Hz
-        self.timer = self.create_timer(timer_period, self.timer_control_callback)
+        timer_con_period = 0.01  # 최대 100Hz
+        timer_cmd_period = 0.05
+        self.timer_con = self.create_timer(timer_con_period, self.timer_control_callback)
+        self.timer_cmdvel = self.create_timer(timer_cmd_period, self.timer_cmdvel_callback)
 
         self.get_logger().info('Wait for server')
         self.Z = 0.8
@@ -43,16 +45,17 @@ class CenterSubscriber(Node):
 
         self.target_x = 81.0
         self.kP_theta = 1.0
-        self.kI_theta = 0.1
-        self.kD_theta = 0.05
+        self.kI_theta = 0.0
+        self.kD_theta = 0.0
+        self.yaw_threshold = 7.0
 
         self.sum_err_theta = 0.0
         self.prev_err_theta = 0.0
-        self.dt = 0.1
+        self.dt = timer_cmd_period
 
         self.get_logger().info('Sub ready')
 
-    def takeoff(self):
+    def takeoff(self):    
         self.allcfs.takeoff(targetHeight=self.Z, duration=1.0 + self.Z)
         self.timeHelper.sleep(1.5 + self.Z)
         self.get_logger().info('Take off')
@@ -68,13 +71,13 @@ class CenterSubscriber(Node):
 
     def ccw(self):
         for cf in self.allcfs.crazyflies:
-            cf.goTo(np.array([0.001, 0, 0]), math.pi / 8.0, 0.05, relative=True)
+            cf.goTo(np.array([0.001, 0, 0]), math.pi / 32.0, 0.05, relative=True)
         self.get_logger().info('CCW')
         self.flag_ccw = False
 
     def cw(self):
         for cf in self.allcfs.crazyflies:
-            cf.goTo(np.array([0.001, 0, 0]), -math.pi / 8.0, 0.05, relative=True)
+            cf.goTo(np.array([0.001, 0, 0]), -math.pi / 32.0, 0.05, relative=True)
         self.get_logger().info('CW')
         self.flag_cw = False
 
@@ -102,6 +105,26 @@ class CenterSubscriber(Node):
         self.get_logger().info('Right')
         self.flag_right = False
 
+    def timer_cmdvel_callback(self, msg):
+        if self.flag_takeoff_done:
+            err_theta = self.target_x - msg.x
+            d_err_theta = (err_theta - self.prev_err_theta) / self.dt
+            self.sum_err_theta += err_theta * self.dt
+
+            yaw_rate = (self.kP_theta * err_theta) + (self.kI_theta * self.sum_err_theta) + (self.kD_theta  * d_err_theta)
+            yaw_rate = np.clip(yaw_rate, -0.5, 0.5)
+
+            if abs(err_theta) > self.yaw_threshold:
+                self.get_logger().info(f"Command yaw_rate : {yaw_rate:.2f}")
+                for cf in self.allcfs.crazyflies:
+                    cf.cmdVel(0, 0, yaw_rate, 0)
+            else:
+                self.get_logger().info("Target reached")
+                self.sum_err_theta = 0
+                for cf in self.allcfs.crazyflies:
+                    cf.cmdVel(0, 0, 0, 0)
+
+            self.prev_err_theta = err_theta
 
     def timer_control_callback(self):
         if self.flag_takeoff and self.flag_box_msg:
@@ -128,19 +151,12 @@ class CenterSubscriber(Node):
         if self.flag_right:
             self.right()
 
+
     def listener_box_callback(self, msg):        
         self.get_logger().info(f'Subscribing : x={msg.x:.2f}, y={msg.y:.2f}')
         self.flag_box_msg = True
 
-        err_theta = self.target_x - msg.x
-        yaw_rate = self.kP_theta * err_theta
-        
-        if self.flag_takeoff_done:
-            if yaw_rate > 0:
-                self.ccw()
-            else:
-                self.cw()   
-
+    
     def listener_cmdvel_callback(self, msg):
         self.get_logger().info(f'Cmd_vel : line_x = {msg.linear.x:.2f}, ang_z = {msg.angular.z:.2f}')
         
