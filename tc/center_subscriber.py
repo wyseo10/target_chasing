@@ -102,7 +102,6 @@ class CenterSubscriber(Node):
         self.get_logger().info('Right')
         self.flag_right = False
 
-
     def timer_control_callback(self):
         if self.flag_takeoff and self.flag_box_msg:
             self.takeoff()
@@ -133,10 +132,10 @@ class CenterSubscriber(Node):
         self.flag_box_msg = True
 
         err_theta = self.target_x - msg.x
-        yaw_rate = self.kP_theta * err_theta
+        #yaw_rate = self.kP_theta * err_theta
         
         if self.flag_takeoff_done:
-            if yaw_rate > 0:
+            if err_theta > 0:
                 self.ccw()
             else:
                 self.cw()   
