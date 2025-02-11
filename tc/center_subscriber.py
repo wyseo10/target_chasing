@@ -2,6 +2,7 @@ import rclpy
 import math
 import numpy as np
 from rclpy.node import Node
+from std_msgs.msg import Float32MultiArray
 from geometry_msgs.msg import PointStamped, Twist
 from crazyflie_py.crazyflie import CrazyflieServer, TimeHelper
 
@@ -22,6 +23,8 @@ class CenterSubscriber(Node):
             10
         )
 
+        self.publisher_yaw = self.create_publisher(Float32MultiArray, 'yaw_plot', 10)
+
         timer_con_period = 0.01  # 최대 100Hz
         timer_cmd_period = 0.05
         self.timer_con = self.create_timer(timer_con_period, self.timer_control_callback)
@@ -31,6 +34,9 @@ class CenterSubscriber(Node):
         self.Z = 0.5
         self.allcfs = CrazyflieServer()
         self.timeHelper = TimeHelper(self.allcfs)
+
+        self.box_x = None
+        self.target_x = 81.0
 
         self.flag_box_msg = False
         self.flag_takeoff_done = False
@@ -45,13 +51,14 @@ class CenterSubscriber(Node):
         self.flag_kill = False
 
         self.yaw = 0.0
+        self.yaw_rate = 0.0
         self.yaw_threshold = 7.0
         self.yaw_rate_max = math.pi / 8
-        self.box_x = None
-        self.target_x = 81.0
+
+        #PID gain tuning required.
         self.kP_theta = 0.01
-        self.kI_theta = 0.0
-        self.kD_theta = 0.00
+        self.kI_theta = 0.0005
+        self.kD_theta = 0.0001
 
         self.sum_err_theta = 0.0
         self.prev_err_theta = 0.0
@@ -124,21 +131,28 @@ class CenterSubscriber(Node):
 
         if msg_time_diff > 0.5:
             self.get_logger().info("Msg Delay !!")
+            self.yaw_rate = 0
             return
 
         err_theta = self.target_x - self.box_x
-        yaw_rate = self.kP_theta * err_theta
-        yaw_rate = max(min(yaw_rate, self.yaw_rate_max), -self.yaw_rate_max)
+        self.yaw_rate = self.kP_theta * err_theta
+        self.yaw_rate = max(min(self.yaw_rate, self.yaw_rate_max), -self.yaw_rate_max)
         
-        self.yaw += yaw_rate * self.dt
+        self.yaw += self.yaw_rate * self.dt
         self.yaw = (self.yaw + math.pi) % (2 * math.pi) - math.pi
-        self.get_logger().info(f"YawRate : {yaw_rate:4f}, Yaw : {self.yaw:4f}, MsgTimeDiff: {msg_time_diff:.4f}")
+        self.get_logger().info(f"YawRate : {self.yaw_rate:4f}, Yaw : {self.yaw:4f}, MsgTimeDiff: {msg_time_diff:.4f}")
 
         if self.flag_takeoff_done:
             for cf in self.allcfs.crazyflies:
                 cf.goTo(np.array([0.001, 0, self.Z]), self.yaw, 0.05, relative=False)
             if abs(err_theta) < self.yaw_threshold:
                 self.get_logger().info("Find Target")
+
+    def timer_plot_callback(self):
+        msg = Float32MultiArray()
+        msg.data = [self.yaw, self.yaw_rate]
+        self.publisher_yaw.publish(msg)
+        self.get_logger().info(f"Publishing...")
 
     def timer_control_callback(self):
         if self.flag_takeoff and self.flag_box_msg:
