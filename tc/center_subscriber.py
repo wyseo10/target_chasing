@@ -1,8 +1,11 @@
 import rclpy
+from rclpy.node import Node
+
 import math
 import numpy as np
-from rclpy.node import Node
-from std_msgs.msg import Float32MultiArray
+import os
+import csv
+
 from geometry_msgs.msg import PointStamped, Twist
 from crazyflie_py.crazyflie import CrazyflieServer, TimeHelper
 
@@ -23,7 +26,6 @@ class CenterSubscriber(Node):
             10
         )
 
-        self.publisher_yaw = self.create_publisher(Float32MultiArray, 'yaw_plot', 10)
 
         timer_con_period = 0.01  # 최대 100Hz
         timer_cmd_period = 0.05
@@ -34,6 +36,12 @@ class CenterSubscriber(Node):
         self.Z = 0.5
         self.allcfs = CrazyflieServer()
         self.timeHelper = TimeHelper(self.allcfs)
+
+        self.csv_filename = "yaw_data.csv"
+        self.csv_file = open(self.csv_filename, "w", newline="")  # 파일 열기
+        self.csv_writer = csv.writer(self.csv_file)
+        self.csv_writer.writerow(["Time (s)", "Yaw", "YawRate"])  # 헤더 작성
+        self.start_time = self.get_clock().now().nanoseconds * 1e-9
 
         self.box_x = None
         self.target_x = 81.0
@@ -127,6 +135,8 @@ class CenterSubscriber(Node):
             return
         
         current_time = self.get_clock().now()
+        c_time = self.get_clock().now().nanoseconds * 1e-9
+        elapsed_time = c_time - self.start_time
         msg_time_diff = (current_time.nanoseconds - self.msg_time) * 1e-9
 
         if msg_time_diff > 0.5:
@@ -142,17 +152,18 @@ class CenterSubscriber(Node):
         self.yaw = (self.yaw + math.pi) % (2 * math.pi) - math.pi
         self.get_logger().info(f"YawRate : {self.yaw_rate:4f}, Yaw : {self.yaw:4f}, MsgTimeDiff: {msg_time_diff:.4f}")
 
+        self.csv_writer.writerow([elapsed_time, self.yaw, self.yaw_rate])
+        self.csv_file.flush()
+
         if self.flag_takeoff_done:
             for cf in self.allcfs.crazyflies:
                 cf.goTo(np.array([0.001, 0, self.Z]), self.yaw, 0.05, relative=False)
             if abs(err_theta) < self.yaw_threshold:
                 self.get_logger().info("Find Target")
 
-    def timer_plot_callback(self):
-        msg = Float32MultiArray()
-        msg.data = [self.yaw, self.yaw_rate]
-        self.publisher_yaw.publish(msg)
-        self.get_logger().info(f"Publishing...")
+    def destroy_node(self):
+        self.csv_file.close()
+        super().destroy_node()  
 
     def timer_control_callback(self):
         if self.flag_takeoff and self.flag_box_msg:
