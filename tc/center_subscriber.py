@@ -26,7 +26,6 @@ class CenterSubscriber(Node):
             10
         )
 
-
         timer_con_period = 0.01  # 최대 100Hz
         timer_cmd_period = 0.05
         self.timer_con = self.create_timer(timer_con_period, self.timer_control_callback)
@@ -37,16 +36,9 @@ class CenterSubscriber(Node):
         self.allcfs = CrazyflieServer()
         self.timeHelper = TimeHelper(self.allcfs)
 
-        self.csv_filename = "yaw_data.csv"
-        self.csv_file = open(self.csv_filename, "w", newline="")  # 파일 열기
-        self.csv_writer = csv.writer(self.csv_file)
-        self.csv_writer.writerow(["Time (s)", "Yaw", "YawRate"])  # 헤더 작성
-        self.start_time = self.get_clock().now().nanoseconds * 1e-9
-
-        self.box_x = None
-        self.target_x = 81.0
-
         self.flag_box_msg = False
+        self.flag_key_mode = True
+        self.flag_target_chasing = False
         self.flag_takeoff_done = False
         self.flag_takeoff = False
         self.flag_land = False
@@ -58,12 +50,21 @@ class CenterSubscriber(Node):
         self.flag_right = False
         self.flag_kill = False
 
+        self.box_x = None
+
+        self.csv_filename = "yaw_data.csv"
+        self.csv_file = open(self.csv_filename, "w", newline="")  # 파일 열기
+        self.csv_writer = csv.writer(self.csv_file)
+        self.csv_writer.writerow(["Time (s)", "Yaw", "YawRate"])  # 헤더 작성
+        self.start_time = self.get_clock().now().nanoseconds * 1e-9
+
+        # PID 관련 
         self.yaw = 0.0
         self.yaw_rate = 0.0
         self.yaw_threshold = 7.0
         self.yaw_rate_max = math.pi / 8
 
-        #PID gain tuning required.
+        self.target_x = 81.0
         self.kP_theta = 0.01
         self.kI_theta = 0.0005
         self.kD_theta = 0.0001
@@ -124,38 +125,45 @@ class CenterSubscriber(Node):
         self.get_logger().info('Right')
         self.flag_right = False
 
+    def modechange(self):
+        if self.flag_key_mode:
+            self.flag_key_mode = False
+        else:
+            self.flag_key_mode = True
+
     def kill(self):
         self.allcfs.emergency()
         self.get_logger().info('Kill')
         self.flag_kill = False
 
+    # yaw rate PID controller
     def timer_cmdvel_callback(self):
         if self.box_x is None:
             self.get_logger().info("No box data")
             return
         
-        current_time = self.get_clock().now()
-        c_time = self.get_clock().now().nanoseconds * 1e-9
-        elapsed_time = c_time - self.start_time
-        msg_time_diff = (current_time.nanoseconds - self.msg_time) * 1e-9
+        if self.flag_target_chasing:
+            current_time = self.get_clock().now()
+            c_time = self.get_clock().now().nanoseconds * 1e-9
+            elapsed_time = c_time - self.start_time
+            msg_time_diff = (current_time.nanoseconds - self.msg_time) * 1e-9
 
-        if msg_time_diff > 0.5:
-            self.get_logger().info("Msg Delay !!")
-            self.yaw_rate = 0
-            return
+            if msg_time_diff > 0.5:
+                self.get_logger().info("Msg Delay !!")
+                self.yaw_rate = 0
+                return
 
-        err_theta = self.target_x - self.box_x
-        self.yaw_rate = self.kP_theta * err_theta
-        self.yaw_rate = max(min(self.yaw_rate, self.yaw_rate_max), -self.yaw_rate_max)
-        
-        self.yaw += self.yaw_rate * self.dt
-        self.yaw = (self.yaw + math.pi) % (2 * math.pi) - math.pi
-        self.get_logger().info(f"YawRate : {self.yaw_rate:4f}, Yaw : {self.yaw:4f}, MsgTimeDiff: {msg_time_diff:.4f}")
+            err_theta = self.target_x - self.box_x
+            self.yaw_rate = self.kP_theta * err_theta
+            self.yaw_rate = max(min(self.yaw_rate, self.yaw_rate_max), -self.yaw_rate_max)
+            
+            self.yaw += self.yaw_rate * self.dt
+            self.yaw = (self.yaw + math.pi) % (2 * math.pi) - math.pi
+            self.get_logger().info(f"YawRate : {self.yaw_rate:4f}, Yaw : {self.yaw:4f}, MsgTimeDiff: {msg_time_diff:.4f}")
 
-        self.csv_writer.writerow([elapsed_time, self.yaw, self.yaw_rate])
-        self.csv_file.flush()
+            self.csv_writer.writerow([elapsed_time, self.yaw, self.yaw_rate])
+            self.csv_file.flush()
 
-        if self.flag_takeoff_done:
             for cf in self.allcfs.crazyflies:
                 cf.goTo(np.array([0.001, 0, self.Z]), self.yaw, 0.05, relative=False)
             if abs(err_theta) < self.yaw_threshold:
@@ -164,6 +172,54 @@ class CenterSubscriber(Node):
     def destroy_node(self):
         self.csv_file.close()
         super().destroy_node()  
+
+    def listener_cmdvel_callback(self, msg):
+        self.get_logger().info(f'Cmd_vel : line_x = {msg.linear.x:.2f}, ang_z = {msg.angular.z:.2f}')
+        
+        # Keyboard Control Mode
+        if self.flag_key_mode:
+            if msg.linear.x == 0.5 and msg.angular.z == 1.0: # "u" is pressed
+                self.flag_ccw = True
+            if msg.linear.x == 0.5 and msg.angular.z == 0.0: # "i" is pressed
+                self.flag_front = True
+            if msg.linear.x == 0.5 and msg.angular.z == -1.0: # "o" is pressed
+                self.flag_cw = True
+            if msg.linear.x == 0.0 and msg.angular.z == 1.0: # "j" is pressed
+                self.flag_left = True
+            if msg.linear.x == 0.0 and msg.angular.z == 0.0: # "k" is pressed
+                self.flag_back = True
+            if msg.linear.x == 0.0 and msg.angular.z == -1.0: # "l" is pressed
+                self.flag_right = True
+            if msg.linear.x == -0.5 and msg.angular.z == -1.0: # "m" is pressed
+                self.flag_kill = True
+            if msg.linear.x == -0.5 and msg.angular.z == 0.0: # "," is pressed
+                self.modechange()
+            if msg.linear.x == -0.5 and msg.angular.z == 1.0: # "." is pressed
+                self.flag_land = True
+
+        # Target Chasing Mode
+        else:
+            if msg.linear.x == 0.5 and msg.angular.z == 1.0: # "u" is pressed
+                self.flag_ccw = True
+            if msg.linear.x == 0.5 and msg.angular.z == 0.0: # "i" is pressed
+                self.flag_front = True
+            if msg.linear.x == 0.5 and msg.angular.z == -1.0: # "o" is pressed
+                self.flag_cw = True
+            if msg.linear.x == 0.0 and msg.angular.z == 1.0: # "j" is pressed
+                self.flag_left = True
+            if msg.linear.x == 0.0 and msg.angular.z == 0.0: # "k" is pressed
+                if self.flag_takeoff_done and not self.flag_target_chasing:
+                    self.flag_target_chasing = True
+                if self.flag_target_chasing:
+                    self.flag_target_chasing = False
+            if msg.linear.x == 0.0 and msg.angular.z == -1.0: # "l" is pressed
+                self.flag_takeoff = True
+            if msg.linear.x == -0.5 and msg.angular.z == -1.0: # "m" is pressed
+                self.flag_kill = True
+            if msg.linear.x == -0.5 and msg.angular.z == 0.0: # "," is pressed
+                self.modechange()
+            if msg.linear.x == -0.5 and msg.angular.z == 1.0: # "." is pressed
+                self.flag_land = True
 
     def timer_control_callback(self):
         if self.flag_takeoff and self.flag_box_msg:
@@ -193,27 +249,7 @@ class CenterSubscriber(Node):
         
         self.flag_box_msg = True
 
-    def listener_cmdvel_callback(self, msg):
-        self.get_logger().info(f'Cmd_vel : line_x = {msg.linear.x:.2f}, ang_z = {msg.angular.z:.2f}')
-        
-        if msg.linear.x == 0.5 and msg.angular.z == 1.0: # "u" is pressed
-            self.flag_ccw = True
-        if msg.linear.x == 0.5 and msg.angular.z == 0.0: # "i" is pressed
-            self.flag_front = True
-        if msg.linear.x == 0.5 and msg.angular.z == -1.0: # "o" is pressed
-            self.flag_cw = True
-        if msg.linear.x == 0.0 and msg.angular.z == 1.0: # "j" is pressed
-            self.flag_left = True
-        if msg.linear.x == 0.0 and msg.angular.z == 0.0: # "k" is pressed
-            self.flag_back = True
-        if msg.linear.x == 0.0 and msg.angular.z == -1.0: # "l" is pressed
-            self.flag_right = True
-        if msg.linear.x == -0.5 and msg.angular.z == -1.0: # "m" is pressed
-            self.flag_kill = True
-        if msg.linear.x == -0.5 and msg.angular.z == 0.0: # "," is pressed
-            self.flag_takeoff = True
-        if msg.linear.x == -0.5 and msg.angular.z == 1.0: # "." is pressed
-            self.flag_land = True
+
 
 def main(args=None):
     rclpy.init(args=args)
