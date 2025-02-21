@@ -83,6 +83,10 @@ class CenterSubscriber(Node):
         self.flag_takeoff = False
         
     def land(self):
+        if self.flag_target_chasing:
+            self.flag_target_chasing = False
+            self.allcfs.notifySetpointsStop()
+
         self.allcfs.land(targetHeight=0.04, duration=2.5)
         self.timeHelper.sleep(1.0+self.Z)
         self.get_logger().info('Land')
@@ -129,9 +133,11 @@ class CenterSubscriber(Node):
         if self.flag_key_mode:
             self.flag_key_mode = False
         else:
+            self.flag_target_chasing = False
             self.flag_key_mode = True
 
     def kill(self):
+        self.flag_target_chasing = False
         self.allcfs.emergency()
         self.get_logger().info('Kill')
         self.flag_kill = False
@@ -210,8 +216,10 @@ class CenterSubscriber(Node):
             if msg.linear.x == 0.0 and msg.angular.z == 0.0: # "k" is pressed
                 if self.flag_takeoff_done and not self.flag_target_chasing:
                     self.flag_target_chasing = True
+                    self.get_logger().info("Target Chasing Started")
                 if self.flag_target_chasing:
                     self.flag_target_chasing = False
+                    self.get_logger().info("Target Chasing Stopped")
             if msg.linear.x == 0.0 and msg.angular.z == -1.0: # "l" is pressed
                 self.flag_takeoff = True
             if msg.linear.x == -0.5 and msg.angular.z == -1.0: # "m" is pressed
