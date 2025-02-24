@@ -148,28 +148,28 @@ class CenterSubscriber(Node):
             self.get_logger().info("No box data")
             return
         
-        if self.flag_target_chasing:
-            current_time = self.get_clock().now()
-            c_time = self.get_clock().now().nanoseconds * 1e-9
-            elapsed_time = c_time - self.start_time
-            msg_time_diff = (current_time.nanoseconds - self.msg_time) * 1e-9
+        current_time = self.get_clock().now()
+        c_time = self.get_clock().now().nanoseconds * 1e-9
+        elapsed_time = c_time - self.start_time
+        msg_time_diff = (current_time.nanoseconds - self.msg_time) * 1e-9
 
-            if msg_time_diff > 0.5:
-                self.get_logger().info("Msg Delay !!")
-                self.yaw_rate = 0
-                return
+        if msg_time_diff > 0.5:
+            self.get_logger().info("Msg Delay !!")
+            self.yaw_rate = 0
+            return
 
-            err_theta = self.target_x - self.box_x
-            self.yaw_rate = self.kP_theta * err_theta
-            self.yaw_rate = max(min(self.yaw_rate, self.yaw_rate_max), -self.yaw_rate_max)
-            
-            self.yaw += self.yaw_rate * self.dt
-            self.yaw = (self.yaw + math.pi) % (2 * math.pi) - math.pi
-            self.get_logger().info(f"YawRate : {self.yaw_rate:4f}, Yaw : {self.yaw:4f}, MsgTimeDiff: {msg_time_diff:.4f}")
+        err_theta = self.target_x - self.box_x
+        self.yaw_rate = self.kP_theta * err_theta
+        self.yaw_rate = max(min(self.yaw_rate, self.yaw_rate_max), -self.yaw_rate_max)
+        
+        self.yaw += self.yaw_rate * self.dt
+        self.yaw = (self.yaw + math.pi) % (2 * math.pi) - math.pi
+        #self.get_logger().info(f"YawRate : {self.yaw_rate:4f}, Yaw : {self.yaw:4f}, MsgTimeDiff: {msg_time_diff:.4f}")
 
-            self.csv_writer.writerow([elapsed_time, self.yaw, self.yaw_rate])
-            self.csv_file.flush()
-
+        self.csv_writer.writerow([elapsed_time, self.yaw, self.yaw_rate])
+        self.csv_file.flush()
+        
+        if self.flag_takeoff_done and self.flag_target_chasing:
             for cf in self.allcfs.crazyflies:
                 cf.goTo(np.array([0.001, 0, self.Z]), self.yaw, 0.05, relative=False)
             if abs(err_theta) < self.yaw_threshold:
