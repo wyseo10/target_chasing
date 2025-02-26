@@ -19,8 +19,8 @@ class CenterPublisher(Node):
 
         self.detector = ObjectDetector()
         self.recorder = VideoRecorder()
-        self.streamer = AIDeckStreamer(flag_jpeg_img=True)
-        self.streamer.update_resolution()
+        self.streamer = AIDeckStreamer()
+        #self.streamer.update_resolution()
 
         self.streamer.connect()
         self.count = 0

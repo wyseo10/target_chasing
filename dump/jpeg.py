@@ -19,7 +19,7 @@ class AIDeckStreamer:
         self.cam_height = cam_height
         self.client_socket = None
 
-    def connect_aideck(self):
+    def connect(self):
         print(f"Connecting to socket on {self.ip}:{self.port}...")
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.client_socket.connect((self.ip, self.port))
