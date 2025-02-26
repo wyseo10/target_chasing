@@ -5,9 +5,9 @@ from geometry_msgs.msg import PointStamped
 import cv2
 import time
 import os
-from .include.object_detector import ObjectDetector
-from .include.video_recorder import VideoRecorder
-from .include.aideck_streamer import AIDeckStreamer
+from tc.include.object_detector import ObjectDetector
+from tc.include.video_recorder import VideoRecorder
+from tc.include.aideck_streamer import AIDeckStreamer
 
 class CenterPublisher(Node):
 
@@ -19,14 +19,15 @@ class CenterPublisher(Node):
 
         self.detector = ObjectDetector()
         self.recorder = VideoRecorder()
-        self.streamer = AIDeckStreamer()
+        self.streamer = AIDeckStreamer(flag_jpeg_img=True)
+        self.streamer.update_resolution()
 
         self.streamer.connect()
         self.count = 0
         self.start = time.time()
 
     def timer_detecting_callback(self):
-        color_img = self.streamer.get_frame()
+        color_img = self.streamer.get_img()
         if color_img is None:
             self.get_logger().warn("No frame received from AIDeck.")
             return
