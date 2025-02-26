@@ -27,7 +27,7 @@ class CenterPublisher(Node):
         self.start = time.time()
 
     def timer_detecting_callback(self):
-        color_img = self.streamer.get_img()
+        color_img = self.streamer.get_frame()
         if color_img is None:
             self.get_logger().warn("No frame received from AIDeck.")
             return
