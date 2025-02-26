@@ -7,7 +7,7 @@ from rclpy.node import Node
 
 
 class AIDeckStreamer:
-    def __init__(self, flag_jpeg_encoder=False):
+    def __init__(self, flag_jpeg_encoder=True):
         # flag_jpeg_encoder check
         # AI-deck IP/port 불러오기
         parser = argparse.ArgumentParser(description='Connect to AI-deck streamer')

@@ -1,6 +1,5 @@
 import rclpy
 from rclpy.node import Node
-
 import math
 import numpy as np
 import os
@@ -171,6 +170,7 @@ class CenterSubscriber(Node):
         self.csv_file.flush()
         
         if self.flag_takeoff_done and self.flag_target_chasing:
+            self.get_logger().warn("Chasing Target...")
             for cf in self.allcfs.crazyflies:
                 cf.goTo(np.array([0.001, 0, self.Z]), self.yaw, 0.05, relative=False)
             if abs(err_theta) < self.yaw_threshold:
@@ -178,7 +178,7 @@ class CenterSubscriber(Node):
 
     def destroy_node(self):
         self.csv_file.close()
-        super().destroy_node()  
+        super().destroy_node()
 
     def listener_cmdvel_callback(self, msg):
         self.get_logger().info(f'Cmd_vel : line_x = {msg.linear.x:.2f}, ang_z = {msg.angular.z:.2f}')
@@ -215,12 +215,12 @@ class CenterSubscriber(Node):
             if msg.linear.x == 0.0 and msg.angular.z == 1.0: # "j" is pressed
                 self.flag_left = True
             if msg.linear.x == 0.0 and msg.angular.z == 0.0: # "k" is pressed
-                if self.flag_takeoff_done and not self.flag_target_chasing:
-                    self.flag_target_chasing = True
-                    self.get_logger().warn("Target Chasing Started")
-                if self.flag_target_chasing:
-                    self.flag_target_chasing = False
-                    self.get_logger().warn("Target Chasing Stopped")
+                if self.flag_takeoff_done:
+                    self.flag_target_chasing = not self.flag_target_chasing
+                    if self.flag_target_chasing:
+                        self.get_logger().warn("Target Chasing Started")
+                    else:
+                        self.get_logger().warn("Target Chasing Stopped")
             if msg.linear.x == 0.0 and msg.angular.z == -1.0: # "l" is pressed
                 self.flag_takeoff = True
             if msg.linear.x == -0.5 and msg.angular.z == -1.0: # "m" is pressed
@@ -257,8 +257,6 @@ class CenterSubscriber(Node):
         self.msg_time = msg.header.stamp.sec * 1e9  + msg.header.stamp.nanosec
         
         self.flag_box_msg = True
-
-
 
 def main(args=None):
     rclpy.init(args=args)
