@@ -3,14 +3,17 @@ import struct
 import numpy as np
 import cv2
 import argparse
+from rclpy.node import Node
+
 
 class AIDeckStreamer:
-    def __init__(self, flag_jpeg_encoder=True):
+    def __init__(self, flag_jpeg_encoder=False):
+        # flag_jpeg_encoder check
         # AI-deck IP/port 불러오기
         parser = argparse.ArgumentParser(description='Connect to AI-deck streamer')
         parser.add_argument("-n", default="192.168.4.1", metavar="ip", help="AI-deck IP")
         parser.add_argument("-p", type=int, default=5000, metavar="port", help="AI-deck port")
-        parser.add_argument('--save', action='store_true', help="Save streamed images")
+        parser.add_argument('--save', action='store_true', help="Save streamed images") 
         args = parser.parse_args()
 
         self.ip = args.n
@@ -37,7 +40,6 @@ class AIDeckStreamer:
         return data 
 
     def get_frame(self):
-        """ 수신된 프레임을 JPEG 또는 RAW로 처리 """
         packetInfoRaw = self.rx_bytes(4)
         [length, routing, function] = struct.unpack('<HBB', packetInfoRaw)
 
@@ -59,12 +61,11 @@ class AIDeckStreamer:
             return self.process_raw_image(img_stream)
 
     def process_jpeg_image(self, img_stream):
-        """ JPEG 이미지를 디코딩 및 변환 """
         nparr = np.frombuffer(img_stream, np.uint8)
         color_img = cv2.imdecode(nparr, cv2.IMREAD_UNCHANGED)
 
         if color_img is None:
-            print("[ERROR] JPEG 디코딩 실패")
+            print("[ERROR] 엔코더 모드 확인")
             return None
 
         if len(color_img.shape) == 2:  # Grayscale 이미지인 경우
@@ -77,7 +78,6 @@ class AIDeckStreamer:
         return color_img
 
     def process_raw_image(self, img_stream):
-        """ RAW 이미지를 Bayer -> BGR로 변환 """
         bayer_img = np.frombuffer(img_stream, dtype=np.uint8)
         bayer_img.shape = (self.cam_height, self.cam_width)
         color_img = cv2.cvtColor(bayer_img, cv2.COLOR_BayerBG2BGR)

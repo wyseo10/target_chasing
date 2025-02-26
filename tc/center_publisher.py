@@ -28,7 +28,7 @@ class CenterPublisher(Node):
     def timer_detecting_callback(self):
         color_img = self.streamer.get_frame()
         if color_img is None:
-            self.get_logger().warn("No frame received from AIDeck.")
+            self.get_logger().info("No frame received from AIDeck.")
             return
 
         self.count += 1
@@ -42,8 +42,6 @@ class CenterPublisher(Node):
         if isinstance(max_box, dict) and 'center_x' in max_box and 'center_y' in max_box:
             center_x = int(max_box['center_x'])
             center_y = int(max_box['center_y'])
-        else:
-            self.get_logger().warn("⚠️ No person detected. Displaying only the camera feed.")
 
         # ROS 2 메시지 생성 및 퍼블리시
         msg = PointStamped()

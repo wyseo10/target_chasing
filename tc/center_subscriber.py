@@ -139,7 +139,7 @@ class CenterSubscriber(Node):
     def kill(self):
         self.flag_target_chasing = False
         self.allcfs.emergency()
-        self.get_logger().info('Kill')
+        self.get_logger().warn('Kill')
         self.flag_kill = False
 
     # yaw rate PID controller
@@ -148,13 +148,14 @@ class CenterSubscriber(Node):
             self.get_logger().info("No box data")
             return
         
+        # Check timer
         current_time = self.get_clock().now()
         c_time = self.get_clock().now().nanoseconds * 1e-9
         elapsed_time = c_time - self.start_time
         msg_time_diff = (current_time.nanoseconds - self.msg_time) * 1e-9
 
         if msg_time_diff > 0.5:
-            self.get_logger().info("Msg Delay !!")
+            self.get_logger().warn("Msg Delay !!")
             self.yaw_rate = 0
             return
 
@@ -216,10 +217,10 @@ class CenterSubscriber(Node):
             if msg.linear.x == 0.0 and msg.angular.z == 0.0: # "k" is pressed
                 if self.flag_takeoff_done and not self.flag_target_chasing:
                     self.flag_target_chasing = True
-                    self.get_logger().info("Target Chasing Started")
+                    self.get_logger().warn("Target Chasing Started")
                 if self.flag_target_chasing:
                     self.flag_target_chasing = False
-                    self.get_logger().info("Target Chasing Stopped")
+                    self.get_logger().warn("Target Chasing Stopped")
             if msg.linear.x == 0.0 and msg.angular.z == -1.0: # "l" is pressed
                 self.flag_takeoff = True
             if msg.linear.x == -0.5 and msg.angular.z == -1.0: # "m" is pressed
