@@ -1,5 +1,5 @@
-#Target Chasing for Crazyswarm2
+# Target Chasing for Crazyswarm2
 
-##Updates
+## Updates
 1. JPEG ENCODER 준비
    - **aideck_streamer** 수정
