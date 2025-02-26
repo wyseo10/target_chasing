@@ -20,8 +20,7 @@ class CenterPublisher(Node):
         self.detector = ObjectDetector()
         self.recorder = VideoRecorder()
         self.streamer = AIDeckStreamer()
-        #self.streamer.update_resolution()
-
+        
         self.streamer.connect()
         self.count = 0
         self.start = time.time()

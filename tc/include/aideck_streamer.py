@@ -5,7 +5,7 @@ import cv2
 import argparse
 
 class AIDeckStreamer:
-    def __init__(self, cam_width=162, cam_height=162, flag_jpeg_encoder=False):
+    def __init__(self, flag_jpeg_encoder=True):
         # AI-deck IP/port 불러오기
         parser = argparse.ArgumentParser(description='Connect to AI-deck streamer')
         parser.add_argument("-n", default="192.168.4.1", metavar="ip", help="AI-deck IP")
@@ -15,10 +15,14 @@ class AIDeckStreamer:
 
         self.ip = args.n
         self.port = args.p
-        self.cam_width = cam_width
-        self.cam_height = cam_height
         self.flag_jpeg_encoder = flag_jpeg_encoder
         self.client_socket = None
+
+        if self.flag_jpeg_encoder:
+            self.cam_width, self.cam_height = 162, 122 #for cf07
+        else:
+            self.cam_width, self.cam_height = 162, 162 #for cf04
+        print(f"[INFO] Encoder Mode : {'JPEG' if self.flag_jpeg_encoder else 'RAW'}")
 
     def connect(self):
         print(f"Connecting to socket on {self.ip}:{self.port}...")
